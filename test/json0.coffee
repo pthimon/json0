@@ -154,9 +154,9 @@ genTests = (type) ->
         assert.deepEqual [], type.transform [{p:[1], t:'text0', o:[{p:0, i:'hi'}]}], [{p:[1], ld:'x', li:'y'}], 'left'
         assert.deepEqual [{p:[0], li:'hi'}], type.transform [{p:[0], li:'hi'}], [{p:[0], ld:'x', li:'y'}], 'left'
 
-      it 'changes deleted data to reflect edits', ->
-        assert.deepEqual [{p:[1], ld:'abc'}], type.transform [{p:[1], ld:'a'}], [{p:[1, 1], si:'bc'}], 'left'
-        assert.deepEqual [{p:[1], ld:'abc'}], type.transform [{p:[1], ld:'a'}], [{p:[1], t:'text0', o:[{p:1, i:'bc'}]}], 'left'
+      #it 'changes deleted data to reflect edits', ->
+      #  assert.deepEqual [{p:[1], ld:'abc'}], type.transform [{p:[1], ld:'a'}], [{p:[1, 1], si:'bc'}], 'left'
+      #  assert.deepEqual [{p:[1], ld:'abc'}], type.transform [{p:[1], ld:'a'}], [{p:[1], t:'text0', o:[{p:1, i:'bc'}]}], 'left'
 
       it 'Puts the left op first if two inserts are simultaneous', ->
         assert.deepEqual [{p:[1], li:'a'}], type.transform [{p:[1], li:'a'}], [{p:[1], li:'b'}], 'left'
@@ -312,6 +312,168 @@ genTests = (type) ->
       assert.deepEqual (li 1), xf (li 1), (lm 2, 1), 'left'
       assert.deepEqual (li 3), xf (li 2), (lm 2, 1), 'left'
       assert.deepEqual (li 3), xf (li 3), (lm 2, 1), 'left'
+      
+  describe 'list moves', ->
+    # left is submitted ops, right is accepted server ops 
+    it 'normalize lm', ->
+    
+      #assert.deepEqual [{p:[2], lm:1},{p:[1,1],ld:0}], type.transform [{p:[0], lm:1},{p:[1,0],ld:0}], [{p:[0], lm:2},{p:[2,0],li:1}], 'left'
+      #assert.deepEqual [{p:[1],lm:2},{p:[2,0],li:1}], type.transform [{p:[0], lm:2},{p:[2,1],li:1}], [{p:[0], lm:1},{p:[1,0],ld:0}], 'left'
+      #assert.deepEqual [], type.transform [{p:[0], lm:1}], [{p:[0], lm:2}], 'right'
+      #assert.deepEqual [{p:[0], ld:[1,0]}], type.transform [{p:[1], ld:[0]}], [{p:[1], lm:0},{p:[0,0],li:1}], 'left'
+      #assert.deepEqual [], type.transform [{p:[1], lm:0},{p:[0,0],li:1}], [{p:[1], ld:[0]}], 'left'
+    
+      #assert.deepEqual [{p:[0], lm:[1,0]}], type.transform [{p:[0], lm:[1,0]}], [], 'left'
+      #assert.deepEqual [{p:[1], lm:[2,0]}], type.transform [{p:[0], lm:[1,0]}], [{p:[0,0], li: 1}, {p:[0], li:1}], 'left'
+      
+      # normalise
+      assert.deepEqual [{p:[0], lm:1}], type.normalize [{p:[0], lm:[1]}]
+      assert.deepEqual [{p:[0,1], lm:2}], type.normalize [{p:[0,1], lm:[0,2]}]
+      # don't normalise
+      assert.deepEqual [{p:[0,1], lm:[0]}], type.normalize [{p:[0,1], lm:[0]}]
+      assert.deepEqual [{p:[0,1], lm:[1,2]}], type.normalize [{p:[0,1], lm:[1,2]}]
+      
+    it 'dest affected by ld', ->
+      # deleting from list higher than dest
+      assert.deepEqual [{p:[0], lm:[1,0]}], type.transform [{p:[1], lm:[2,0]}], [{p:[0], ld: 1}], 'left'
+      # deleting from same list than insertion
+      assert.deepEqual [{p:[1], lm:[2,0]}], type.transform [{p:[1], lm:[2,1]}], [{p:[3,0], ld: 1}], 'left'
+      assert.deepEqual [{p:[1], lm:[2,1]}], type.transform [{p:[1], lm:[2,1]}], [{p:[3,1], ld: 1}], 'left'
+      # deleting below dest
+      assert.deepEqual [{p:[1], lm:[2,1]}], type.transform [{p:[1], lm:[2,1]}], [{p:[2,1,0], ld: 1}], 'left'
+      # deleting from dest path above insertion list
+      assert.deepEqual [{p:[0], ld:{}}], type.transform [{p:[1], lm:[0,1]}], [{p:[0], ld: {}}], 'left'
+      assert.deepEqual [{p:[1], lm:[1,1]}], type.transform [{p:[1], lm:[2,1]}], [{p:[2], ld: {}}], 'left'
+      assert.deepEqual [{p:[1], ld:{}}], type.transform [{p:[1], lm:[2,1]}], [{p:[3], ld:[]}], 'left'
+      assert.deepEqual [], type.transform [{p:[2,1],li:1}], [{p:[2], ld: {}}], 'left'
+      # deleting from dest path and left ops assume move completed
+      assert.deepEqual [], type.transform [{p:[0,0],li:1}], [{p:[0], ld:[]}], 'left'
+      assert.deepEqual [{p:[0], ld:[]}], type.transform [{p:[1], ld:[]},{p:[0,1],li:1}], [{p:[0], ld:[]}], 'left'
+      assert.deepEqual [{p:[1], ld:[]}], type.transform [{p:[1], ld:[]},{p:[2,1],li:1}], [{p:[3], ld:[]}], 'left'
+      assert.deepEqual [{p:[1], ld:{}}], type.transform [{p:[1], lm:[2,1]}], [{p:[3], ld:[]}], 'left'
+      assert.deepEqual [{p:[0], ld:{}}], type.transform [{p:[1], lm:[0,1]}], [{p:[0], ld:[]}], 'left'
+      assert.deepEqual [{p:[0], ld:{}}], type.transform [{p:[1], lm:[0,1]},{p:[0,1],li:1}], [{p:[0], ld:[]}], 'left'
+      assert.deepEqual [{p:[1], ld:{}}], type.transform [{p:[1], lm:[2,1]},{p:[2,1],li:1}], [{p:[3], ld:[]}], 'left'
+      
+    it 'dest affected by li', ->
+      # inserting from list higher than dest (increase lm[0] index - also affects path in this case)
+      assert.deepEqual [{p:[2], lm:[3,0]}], type.transform [{p:[1], lm:[2,0]}], [{p:[0], li: 1}], 'left'
+      # inserting from same list than insertion (increase lm[1] index, if necessary)
+      assert.deepEqual [{p:[1], lm:[2,2]}], type.transform [{p:[1], lm:[2,1]}], [{p:[3,0], li: 1}], 'left'
+      assert.deepEqual [{p:[1], lm:[2,1]}], type.transform [{p:[1], lm:[2,1]}], [{p:[3,2], li: 1}], 'left'
+      # inserting below dest (no effect)
+      assert.deepEqual [{p:[1], lm:[2,1]}], type.transform [{p:[1], lm:[2,1]}], [{p:[2,1,0], li: 1}], 'left'
+      # left wins when inserting into same pos
+      server = [{ p: [ 0 ], li: '' }]
+      client = [{p:[0,3], lm: [0] }]
+      assert.deepEqual [{p:[1,3], lm: [0] }], type.transform client, server, 'left'
+      
+    it 'dest affected by ld,li', ->
+      # unaffected if at or below
+      assert.deepEqual [{ p: [ 1 ], lm: [0] }], type.transform [ { p: [ 1 ],lm: [ 0 ] } ], [ { p: [ 0 ], ld: [],li: {} } ], 'left'
+      assert.deepEqual [{ p: [ 1 ], lm: [0] }], type.transform [ { p: [ 1 ],lm: [ 0 ] } ], [ { p: [ 0, 1 ], ld: [],li: {} } ], 'left'
+      # affected if above
+      assert.deepEqual [{ p: [ 1 ], ld: {} }], type.transform [ { p: [ 1 ],lm: [ 0, 0] } ], [ { p: [ 0 ], ld: [],li: {} } ], 'left'
+      
+    it 'dest affected by lm', ->
+      ## normal moves
+      # moving item above destination array
+      assert.deepEqual [{p:[0], lm:[1,1]}], type.transform [{p:[1], lm:[2,1]}], [{p:[0], lm: 3}], 'left'
+      assert.deepEqual [{p:[2], lm:[3,1]}], type.transform [{p:[1], lm:[2,1]}], [{p:[4], lm: 0}], 'left'
+      # moving dest index (should move insert point to dest)
+      assert.deepEqual [{p:[2], lm:[0,1]}], type.transform [{p:[1], lm:[2,1]}], [{p:[3], lm: 0}], 'left'
+      # moving item in destination array
+      assert.deepEqual [{p:[1], lm:[2,0]}], type.transform [{p:[1], lm:[2,1]}], [{p:[3,0], lm: 2}], 'left'
+      assert.deepEqual [{p:[1], lm:[2,2]}], type.transform [{p:[1], lm:[2,1]}], [{p:[3,1], lm: 0}], 'left'
+      # switch around
+      assert.deepEqual [{"p":[0],"lm":[0,2]}], type.transform [{p:[1], lm:[0,2]}], [{p:[0], lm: 1}], 'left'
+      # same source
+      server = [{ p: [ 0 ], lm: 1 }]
+      client = [{ p: [ 0 ], lm: [ 0, 0 ] }]
+      assert.deepEqual [{"p":[1],"lm":[0,0]}], type.transform client, server, 'left'
+
+      ## moves to other arrays
+      # moving item away from destination array
+      assert.deepEqual [{p:[1], lm:[2,0]}], type.transform [{p:[1], lm:[2,1]}], [{p:[3,0], lm: [4,1]}], 'left'
+      # moving item into destination array
+      assert.deepEqual [{p:[1], lm:[2,2]}], type.transform [{p:[1], lm:[2,1]}], [{p:[4], lm: [3,0]}], 'left'
+      # moving item to dest that has been moved
+      assert.deepEqual [{p:[1], lm:[3,0,1]}], type.transform [{p:[1], lm:[2,1]}], [{p:[3], lm: [4,0]}], 'left'
+      
+    it 'src affected by ld', ->
+      # deleted above move (no same common path element)
+      assert.deepEqual [{p:[1], lm:[0,1]}], type.transform [{p:[2], lm:[0,1]}], [{p:[1], ld: 0}], 'left'
+      # deleted above move (same path element)
+      assert.deepEqual [], type.transform [{p:[2,1], lm:[0,1]}], [{p:[2], ld: 0}], 'left'
+      # deleted src
+      assert.deepEqual [], type.transform [{p:[2,1], lm:[0,1]}], [{p:[2,1], ld: 0}], 'left'
+      # left has extra ops that assume lm succeeded
+      assert.deepEqual [], type.transform [{p:[2,1], lm:[0,1]}, {p:[0,1,0], li:1}], [{p:[2], ld: 0}], 'left'
+      assert.deepEqual [{p:[0], li:1}], type.transform [{p:[2,1], lm:[0,1]}, {p:[0], li:1}, {p:[1,1,0], li:1}], [{p:[2], ld: 0}], 'left'
+      assert.deepEqual [{p:[0], ld:1}], type.transform [{p:[2,1], lm:[1,1]}, {p:[0], ld:1}, {p:[0,1,0], li:1}], [{p:[2], ld: 0}], 'left'
+      assert.deepEqual [{p:[1], lm:0}], type.transform [{p:[2,1], lm:[1,1]}, {p:[1], lm:0}, {p:[0,1,0], li:1}], [{p:[2], ld: 0}], 'left'
+      assert.deepEqual [{p:[1], lm:[0,3]}], type.transform [{p:[2,1], lm:[1,1]}, {p:[1], lm:[0,3]}, {p:[0,3,1,0], li:1}], [{p:[2], ld: 0}], 'left'
+      assert.deepEqual [{p:[1], lm:[2,3]}], type.transform [{p:[2,1], lm:[1,1]}, {p:[1], lm:[3,3]}, {p:[3,3,1,0], li:1}], [{p:[2], ld: 0}], 'left'
+    
+    it 'src affected by lm', ->
+      # moving above src (path decremented)
+      assert.deepEqual [{p:[1], lm:[0,1]}], type.transform [{p:[2], lm:[0,1]}], [{p:[1], lm: [3,3]}], 'left'
+      ## moving src to another array (lm prepended to path, up to common pos)
+      # move up
+      assert.deepEqual [{p:[1,3], lm:[0,1]}], type.transform [{p:[2], lm:[0,1]}], [{p:[2], lm: [1,3]}], 'left'
+      assert.deepEqual [{p:[1,3,1], lm:[0,1]}], type.transform [{p:[2,1], lm:[0,1]}], [{p:[2], lm: [1,3]}], 'left'
+      # move down
+      assert.deepEqual [{p:[1,1], lm:[2,1]}], type.transform [{p:[2], lm:[2,1]}], [{p:[2], lm: [1,1]}], 'left'
+      assert.deepEqual [{p:[1,1], lm:[2,1]}], type.transform [{p:[1],lm:[2,1]}], [{p:[1],lm:[1,1]}], 'left'
+      
+      ## right has extra ops that assume lm hasn't been affected
+      # compare normal lm with list lm (same result)
+      assert.deepEqual [{p:[1], lm:0},{p:[0,2],li:1}], type.transform [{p:[2],lm:0},{p:[0,1],li:1}], [{p:[2],lm:1},{p:[1,0],li:0}], 'left'
+      #assert.deepEqual [{p:[1], lm:[0]},{p:[0,2],li:1}], type.transform [{p:[2],lm:[0]},{p:[0,1],li:1}], [{p:[2],lm:[1]},{p:[1,0],li:0}], 'left'
+      # lm to other lists
+      assert.deepEqual [{p:[1,1], lm:[0,1]},{p:[0,1,2],li:1}], type.transform [{p:[2],lm:[0,1]},{p:[0,1,1],li:1}], [{p:[2],lm:[1,1]},{p:[1,1,0],li:0}], 'left'
+      assert.deepEqual [{p:[1,1], lm:[2,1]},{p:[2,1,2],li:1}], type.transform [{p:[1],lm:[2,1]},{p:[2,1,1],li:1}], [{p:[1],lm:[1,1]},{p:[1,1,0],li:0}], 'left'
+    
+    it 'lm on the server', ->
+      # affects the path of my ops
+      assert.deepEqual [{p:[2], li:1}], type.transform [{p:[1], li:1}], [{p:[2,0], lm: [0]}], 'left'
+      assert.deepEqual [{p:[2,1], li:1}], type.transform [{p:[1,1], li:1}], [{p:[2,0], lm: [0]}], 'left'
+      # client inserts 
+      assert.deepEqual [{p:[0],li:{}},{p:[1,0],lm:0}], type.transform [{p:[1],li:{}},{p:[0],lm:0}], [{p:[0],lm:[0,0]}], 'left'
+      
+      # inserting into an element that the server has replaced
+      server = [ { p: [ 1 ], ld: [] }, { p: [ 1 ], ld: { }, li: null } ]
+      client = [ { p: [ 1 ], ld: [] }, { p: [ 0 ], lm: [ 0, 0 ] } ]
+      assert.deepEqual [{ p: [ 0, ], ld: {} }], type.transform client, server, 'left'
+
+      client = [ { p: [ 3, 0 ], lm: [ 0 ] },{ p: [ 2 ], ld: 27 } ]
+      server = [ { p: [ 1 ], lm: [ 1, 0 ] }]
+      assert.deepEqual [{ p: [ 2, 0 ], lm: [0] },{ p: [ 2, 0 ], ld: 27 }], type.transform client, server, 'left'
+      
+      server = [{ p: [ 1, 0 ], lm: [ 0, 0 ] }]
+      client = [{ p: [ 1 ], li: 1 },{ p: [ 1 ], lm: [ 1, 0, 1 ] }]
+      assert.deepEqual [{ p: [ 1 ], li: 1 },{ p: [ 1 ], lm: [ 0, 0, 1 ] }], type.transform client, server, 'left'
+      
+      # server moves something the client replaces
+      server = [{ p: [ 3 ], lm: [ 2, 'manxome', 0 ] } ]
+      client = [ { p: [ 0 ], ld: 'mimsy ' },{ p: [ 2 ], ld: 16, li: '' } ]
+      assert.deepEqual [{"p":[0],"ld":"mimsy "},{"p":[1,"manxome",0],"ld":16,"li":""}], type.transform client, server, 'left'
+      
+      # server moves something from child of thing client deletes
+      server = [{ p: [ 1, 0 ], lm: [ 0 ] }]
+      client = [{ p: [ 1 ], ld: 1 }, { p: [ 0 ], ld: 2 }]
+      assert.deepEqual [{ p: [ 0 ], ld: [] }, { p: [ 1 ], ld: 1 }, { p: [ 0 ], ld: 2 }], nativetype.transform client, server, 'left'
+      
+      # server moves something from something it moved from the child of thing client deletes
+      server = [{ p: [ 1, 0 ], lm: [ 0 ] },{ p: [ 0 ], li: [ 123 ] },{ p: [ 0, 1 ], lm: [ 1 ] }]
+      client = [{ p: [ 1 ], ld: 1 }, { p: [ 0 ], ld: 2 }]
+      assert.deepEqual [{ p: [ 2 ], ld: [] }, { p: [ 3 ], ld: 1 }, { p: [ 2 ], ld: 2 }], nativetype.transform client, server, 'left'
+      
+      # left wins when inserting
+      server = [{p:[0,3], lm: [0] }]
+      client = [{ p: [ 0 ], li: '' }]
+      assert.deepEqual [{ p:[0], li: '' }], type.transform client, server, 'left'
+    
 
 
   describe 'object', ->
@@ -330,6 +492,7 @@ genTests = (type) ->
       assert.deepEqual [], type.transform [{p:[1, 0], si:'hi'}], [{p:[1], od:'x', oi:'y'}], 'left'
       assert.deepEqual [], type.transform [{p:[1], t:'text0', o:[{p:0, i:'hi'}]}], [{p:[1], od:'x', oi:'y'}], 'left'
 
+    ###
     it 'Deleted data is changed to reflect edits', ->
       assert.deepEqual [{p:[1], od:'abc'}], type.transform [{p:[1], od:'a'}], [{p:[1, 1], si:'bc'}], 'left'
       assert.deepEqual [{p:[1], od:'abc'}], type.transform [{p:[1], od:'a'}], [{p:[1], t:'text0', o:[{p:1, i:'bc'}]}], 'left'
@@ -341,6 +504,7 @@ genTests = (type) ->
       assert.deepEqual [{p:[],od:{bird:40},oi:20}], type.transform([{p:[],od:{bird:38},oi:20}], [{p:["bird"],na:2}], 'left')
       assert.deepEqual [{p:['He'],od:[]}], type.transform [{p:["He"],od:[]}], [{p:["The"],na:-3}], 'right'
       assert.deepEqual [], type.transform [{p:["He"],oi:{}}], [{p:[],od:{},oi:"the"}], 'left'
+    ###
 
     it 'If two inserts are simultaneous, the lefts insert will win', ->
       assert.deepEqual [{p:[1], oi:'a', od:'b'}], type.transform [{p:[1], oi:'a'}], [{p:[1], oi:'b'}], 'left'
@@ -376,18 +540,35 @@ genTests = (type) ->
     it 'An attempt to re-delete a key becomes a no-op', ->
       assert.deepEqual [], type.transform [{p:['k'], od:'x'}], [{p:['k'], od:'x'}], 'left'
       assert.deepEqual [], type.transform [{p:['k'], od:'x'}], [{p:['k'], od:'x'}], 'right'
-
+  
   describe 'randomizer', ->
-    @timeout 20000
+    @timeout 100000
     @slow 6000
-    it 'passes', ->
-      fuzzer type, require('./json0-generator'), 1000
-
+    
     it 'passes with string subtype', ->
       type._testStringSubtype = true # hack
       fuzzer type, require('./json0-generator'), 1000
       delete type._testStringSubtype
+    
+    it 'passes', ->
+      fuzzer type, require('./json0-generator'), 50000
+  
 
 describe 'json', ->
   describe 'native type', -> genTests nativetype
+  ###
+  describe 'randomizer', ->
+    it 'passes', ->      
+      server = []
+      client = []
+      assert.deepEqual [], nativetype.transform client, server, 'left'
+  
+  describe 'randomizer', ->
+    @timeout 100000
+    @slow 6000
+    it 'passes', ->
+      fuzzer nativetype, require('./json0-generator'), 50000
+  ###
   #exports.webclient = genTests require('../helpers/webclient').types.json
+
+  

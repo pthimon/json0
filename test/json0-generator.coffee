@@ -52,6 +52,38 @@ randomPath = (data) ->
     data = data[key]
 
   path
+  
+randomArrayPath = (data, excludePath) ->
+  # loop through the whole doc and find paths to arrays
+  arrays = []
+  
+  queue = [[data,[],0,true]]
+  while queue.length > 0
+    [obj,path,depth,common] = queue.splice(0, 1)[0]
+    if Array.isArray(obj)
+      # save array
+      arrays.push(path)
+      for p, key in obj
+          newPath = path[..]
+          newPath.push(key)
+          # don't descend into children of excludePath
+          queue.push([p, newPath, depth+1, (common and excludePath[depth] == key)])
+    else if (typeof obj == 'object')
+      # pass through objects
+      for key,p of obj
+        newPath = path[..]
+        newPath.push(key)
+        queue.push([p, newPath, depth+1, (common and excludePath[depth] == key)])
+  
+  # randomly select one of the arrays
+  path = arrays[randomInt(arrays.length-1)]
+  # navigate path
+  operand = data
+  for p in path
+    operand = operand[p]
+  # choose a random position in the array
+  path.push(randomInt operand.length)
+  path
 
 
 module.exports = genRandomOp = (data) ->
@@ -75,14 +107,32 @@ module.exports = genRandomOp = (data) ->
 
     if randomReal() < 0.4 and parent != container and Array.isArray(parent)
       # List move
-      newIndex = randomInt parent.length
-
+      
       # Remove the element from its current position in the list
+      #console.log(JSON.stringify(container,null,2))
+      #console.log(path)
       parent.splice key, 1
-      # Insert it in the new position.
-      parent.splice newIndex, 0, operand
+      
+      newPath = randomArrayPath(container['data'], path)
+      
+      #console.log(newPath)
 
-      {p:path, lm:newIndex}
+      newParent = container
+      newKey = 'data'
+      for p in newPath
+        newParent = newParent[newKey]
+        newKey = p
+      
+      if newParent == parent
+        parent.splice newKey, 0, operand
+        # insert it in the same array
+        #console.log({p:path, lm:newKey})
+        {p:path, lm:newKey}
+      else
+        # insert it in the new array
+        newParent.splice newKey, 0, operand
+        #console.log({p:path, lm:newPath})
+        {p:path, lm:newPath}
 
     else if randomReal() < 0.3 or operand == null
       # Replace
